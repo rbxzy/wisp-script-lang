@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WispScript Transpiler</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/monokai.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e1e;
+        }
+        header {
+            background: #2d2d30;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #3e3e42;
+        }
+        h1 {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        #runBtn {
+            padding: 8px 24px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        #runBtn:hover {
+            background: #1177bb;
+        }
+        #runBtn:active {
+            background: #0d5a8f;
+        }
+        .container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #3e3e42;
+        }
+        .editor-panel:last-child {
+            border-right: none;
+        }
+        .editor-header {
+            background: #252526;
+            color: #ccc;
+            padding: 8px 16px;
+            font-size: 13px;
+            border-bottom: 1px solid #3e3e42;
+        }
+        .CodeMirror {
+            flex: 1;
+            height: 100%;
+            font-size: 18px;
+        }
+        .error {
+            color: #f48771;
+            padding: 12px;
+            background: #3e1e1e;
+            border-left: 3px solid #f48771;
+            margin: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>WispScript Transpiler</h1>
+        <button id="runBtn">Transpile →</button>
+    </header>
+    <div class="container">
+        <div class="editor-panel">
+            <div class="editor-header">WispScript Source</div>
+            <textarea id="sourceEditor"></textarea>
+        </div>
+        <div class="editor-panel">
+            <div class="editor-header">TypeScript Output</div>
+            <textarea id="outputEditor"></textarea>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+    <script>
+        // Define WispScript syntax highlighting mode
+        CodeMirror.defineSimpleMode("wispscript", {
+            start: [
+                // Comments
+                {regex: /\/\/.*/, token: "comment"},
+                {regex: /\/\*/, token: "comment", next: "comment"},
+                
+                // Strings
+                {regex: /"(?:[^\\]|\\.)*?(?:"|$)/, token: "string"},
+                {regex: /'(?:[^\\]|\\.)*?(?:'|$)/, token: "string"},
+                
+                // Keywords
+                {regex: /\b(var|func|return|end|if|else|elif|and|or|not|for|while|in|global|true|false)\b/, token: "keyword"},
+                
+                // Built-in functions
+                {regex: /\b(print|wait|createClone|key_down|key_up|random|randrange|floor|ceil|round|abs|pow|sqrt|min|max|sin|cos|tan|atan2)\b/, token: "builtin"},
+                
+                // Numbers
+                {regex: /0x[a-f\d]+|[-+]?(?:\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/i, token: "number"},
+                
+                // Operators
+                {regex: /[-+\/*=<>!]+/, token: "operator"},
+                
+                // Identifiers (variable names, function names)
+                {regex: /[a-z_][a-z0-9_]*/i, token: "variable"},
+                
+                // Punctuation
+                {regex: /[\[\]{}(),:.]/, token: "punctuation"},
+            ],
+            comment: [
+                {regex: /.*?\*\//, token: "comment", next: "start"},
+                {regex: /.*/, token: "comment"}
+            ],
+            meta: {
+                lineComment: "//"
+            }
+        });
+    </script>
+    <script type="module">
+        const sourceEditor = CodeMirror.fromTextArea(document.getElementById('sourceEditor'), {
+            mode: 'wispscript',
+            theme: 'monokai',
+            lineNumbers: true,
+            indentUnit: 2,
+            tabSize: 2,
+        });
+
+        const outputEditor = CodeMirror.fromTextArea(document.getElementById('outputEditor'), {
+            mode: 'javascript',
+            theme: 'monokai',
+            lineNumbers: true,
+            readOnly: true,
+            indentUnit: 2,
+            tabSize: 2,
+            lineWrapping: true,
+        });
+
+        // Sample code
+        sourceEditor.setValue(`/*
+    Particles.wisp (Particle System Example Script)
+    Demonstrates all supported WispScript v0.5.1(beta) features.
+		
+    ** Features summary generated using ChatGGPT **
+    ───────────────────────────────────────────────
+    🧠 Language Features Shown in This Example:
+    ───────────────────────────────────────────────
+    • Variable declarations:
+        var name = value
+        global var name = value  → accessible across all scripts as 'global name'
+
+    • Function declarations:
+        func name(params) ... end
+        global func name(params) ... end  → globally accessible functions
+
+    • Built-in special functions:
+        func _forever()   → runs every frame
+        func _on_clone_start(clone) → runs for each created clone
+
+    • Control flow:
+        if (condition) ... end
+        if (condition) ... else ... end
+        for (var i = 0; i < n; i++) ... end
+        while (condition) ... end
+
+    • All CodeWisp functions built-in:
+        createClone()
+        clone.delete()
+        wait(seconds)
+
+    • Math library:
+        random(min, max)
+        floor(value)
+        sqrt(value)
+        abs(value)
+        etc.
+
+    • Object literals (data containers):
+        var obj = { key: value, key2: value2 }
+
+    • Lists:
+        var list = []
+        list.push(value)
+        list.splice(index, count)
+        list.length
+        list[i]
+
+    • Global access:
+        global variableName
+        global functionName(args)
+
+    • Sprite properties and data fields:
+        sprite.x, sprite.y, sprite.rotation, sprite.costume
+        clone.data = { ... }  → custom per-clone data storage
+    ───────────────────────────────────────────────
+*/
+
+func vector(x, y)
+	return {x: x, y: y}
+end
+
+// Max particles in a single burst
+var MIN_PARTICLES = 5
+var MAX_PARTICLES = 12
+
+func particles(costumeName, x, y)
+	var particleCount = floor(random(MIN_PARTICLES, MAX_PARTICLES))
+
+	for (var i = 0; i < particleCount; i++)
+		var clone = createClone()
+		clone.x = x
+		clone.y = y
+
+		var target_x = random(-50, 50)
+		var target_y = random(-50, 50)
+
+		var dx = target_x
+		var dy = target_y
+		var distance = sqrt(dx * dx + dy * dy) or 1 // prevent division by 0
+
+		// Random speed and lifespan
+		var speed    = random(1.5, 3)
+		var lifespan = random(15, 35)
+
+		clone.data = {
+			vx: (dx / distance) * speed,
+			vy: (dy / distance) * speed,
+			lifespan: lifespan,
+			age: 0,
+		}
+	end
+end
+
+func _on_clone_start(clone)
+	func _forever()
+		clone.x += clone.data.vx
+		clone.y += clone.data.vy
+
+		clone.data.age += 1
+		clone.transparency = (clone.data.age / clone.data.lifespan) * 100
+
+		if (clone.data.age >= clone.data.lifespan)
+			clone.delete()
+		end
+	end
+end
+
+// Expose particle system globally
+global func spawnParticles(costumeName, x, y)
+	particles(costumeName, x, y)
+end
+
+// Example usage (accessible from any script)
+global spawnParticles("Wispy", 0, 0)`);
+
+        document.getElementById('runBtn').addEventListener('click', async () => {
+            try {
+                const source = sourceEditor.getValue();
+                const response = await fetch('/transpile', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ source }),
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    outputEditor.setValue(`// Error:\n// ${data.error}`);
+                } else {
+                    outputEditor.setValue(data.result);
+                }
+            } catch (error) {
+                outputEditor.setValue(`// Error:\n// ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html>
